@@ -1,2 +1,2 @@
 # pacman-CLI-C
-A pacman game played right in the terminal
+ Pac-Man played right in the terminal
