@@ -1,4 +1,5 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include <vector>
 #include <string>
 #include <cstdlib>
@@ -18,7 +19,6 @@ public:
     int gridX;
     int gridY;
 
-    // New variables for ghost behavior
     bool is_vulnerable = false;
     sf::Color original_color;
 
@@ -59,14 +59,12 @@ int main()
     srand(time(NULL));
     sf::RenderWindow window(sf::VideoMode(800, 600), "Pac-Man");
 
-    // Timer variables to control movement speed
     sf::Clock clock;
     sf::Time pacman_step_interval = sf::seconds(0.2f);
     sf::Time ghost_step_interval = sf::seconds(0.3f);
     sf::Time last_pacman_step_time = sf::Time::Zero;
     sf::Time last_ghost_step_time = sf::Time::Zero;
 
-    // Variables for power-up mode
     sf::Time powerup_duration = sf::seconds(7.0f);
     sf::Time powerup_start_time = sf::Time::Zero;
     bool is_powerup_active = false;
@@ -102,6 +100,15 @@ int main()
     {
         return -1;
     }
+
+    // Sound variables
+    sf::SoundBuffer pelletBuffer;
+    if (!pelletBuffer.loadFromFile("pellet_sound.wav"))
+    {
+        return -1;
+    }
+    sf::Sound pelletSound;
+    pelletSound.setBuffer(pelletBuffer);
 
     sf::Text scoreText;
     scoreText.setFont(font);
@@ -167,16 +174,13 @@ int main()
                 {
                     current_state = GameState::Playing;
 
-                    // Reset the maze to its original state
                     maze_map = initial_maze_map;
 
-                    // Reset game variables for a new game
                     pacmanX = 1;
                     pacmanY = 1;
                     score = 0;
                     pellets_left = 0;
 
-                    // Reset ghost positions
                     ghosts[0].gridX = 10;
                     ghosts[0].gridY = 6;
                     ghosts[1].gridX = 9;
@@ -186,11 +190,9 @@ int main()
                     ghosts[3].gridX = 11;
                     ghosts[3].gridY = 7;
 
-                    // Reset step timers
                     last_pacman_step_time = clock.getElapsedTime();
                     last_ghost_step_time = clock.getElapsedTime();
 
-                    // Recount pellets from the now-reset maze map
                     for (size_t y = 0; y < maze_map.size(); ++y)
                     {
                         for (size_t x = 0; x < maze_map[y].size(); ++x)
@@ -214,7 +216,6 @@ int main()
 
         if (current_state == GameState::Playing)
         {
-            // Update Pac-Man's position based on a fixed timestep
             if (clock.getElapsedTime() - last_pacman_step_time >= pacman_step_interval)
             {
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
@@ -228,11 +229,12 @@ int main()
                             maze_map[nextY][nextX] = ' ';
                             score += 10;
                             pellets_left--;
+                            pelletSound.play();
                         }
                         else if (maze_map[nextY][nextX] == 'O')
                         {
                             maze_map[nextY][nextX] = ' ';
-                            score += 50; // Award bonus points for eating a power pellet
+                            score += 50;
                             is_powerup_active = true;
                             powerup_start_time = clock.getElapsedTime();
                             pellets_left--;
@@ -252,11 +254,12 @@ int main()
                             maze_map[nextY][nextX] = ' ';
                             score += 10;
                             pellets_left--;
+                            pelletSound.play();
                         }
                         else if (maze_map[nextY][nextX] == 'O')
                         {
                             maze_map[nextY][nextX] = ' ';
-                            score += 50; // Award bonus points for eating a power pellet
+                            score += 50;
                             is_powerup_active = true;
                             powerup_start_time = clock.getElapsedTime();
                             pellets_left--;
@@ -276,11 +279,12 @@ int main()
                             maze_map[nextY][nextX] = ' ';
                             score += 10;
                             pellets_left--;
+                            pelletSound.play();
                         }
                         else if (maze_map[nextY][nextX] == 'O')
                         {
                             maze_map[nextY][nextX] = ' ';
-                            score += 50; // Award bonus points for eating a power pellet
+                            score += 50;
                             is_powerup_active = true;
                             powerup_start_time = clock.getElapsedTime();
                             pellets_left--;
@@ -300,11 +304,12 @@ int main()
                             maze_map[nextY][nextX] = ' ';
                             score += 10;
                             pellets_left--;
+                            pelletSound.play();
                         }
                         else if (maze_map[nextY][nextX] == 'O')
                         {
                             maze_map[nextY][nextX] = ' ';
-                            score += 50; // Award bonus points for eating a power pellet
+                            score += 50;
                             is_powerup_active = true;
                             powerup_start_time = clock.getElapsedTime();
                             pellets_left--;
@@ -314,17 +319,14 @@ int main()
                     }
                 }
 
-                // Update the last step time after the movement
                 last_pacman_step_time = clock.getElapsedTime();
             }
 
-            // Check if the power-up has expired
             if (is_powerup_active && (clock.getElapsedTime() - powerup_start_time >= powerup_duration))
             {
                 is_powerup_active = false;
             }
 
-            // Update ghosts based on power-up state
             for (size_t i = 0; i < ghosts.size(); ++i)
             {
                 if (is_powerup_active)
@@ -339,25 +341,58 @@ int main()
                 }
             }
 
-            // Update Ghost positions based on a fixed timestep
             if (clock.getElapsedTime() - last_ghost_step_time >= ghost_step_interval)
             {
                 for (size_t i = 0; i < ghosts.size(); ++i)
                 {
-                    float bestDistance = -1.0f;
-                    int nextX = ghosts[i].gridX;
-                    int nextY = ghosts[i].gridY;
-
-                    // Determine the target based on power-up state
-                    float targetX = (float)pacmanX;
-                    float targetY = (float)pacmanY;
+                    float targetX;
+                    float targetY;
 
                     if (ghosts[i].is_vulnerable)
                     {
-                        // If vulnerable, the ghosts will flee to the opposite side of the screen
                         targetX = window.getSize().x / TILE_SIZE - pacmanX;
                         targetY = window.getSize().y / TILE_SIZE - pacmanY;
                     }
+                    else
+                    {
+                        switch (i)
+                        {
+                            case 0: // Blinky (Red)
+                                targetX = pacmanX;
+                                targetY = pacmanY;
+                                break;
+                            case 1: // Pinky (Cyan)
+                                targetX = pacmanX + 4;
+                                targetY = pacmanY + 4;
+                                break;
+                            case 2: // Inky (Magenta)
+                                {
+                                    int blinkyX = ghosts[0].gridX;
+                                    int blinkyY = ghosts[0].gridY;
+                                    int vectorX = pacmanX - blinkyX;
+                                    int vectorY = pacmanY - blinkyY;
+                                    targetX = blinkyX + vectorX * 2;
+                                    targetY = blinkyY + vectorY * 2;
+                                }
+                                break;
+                            case 3: // Clyde (Yellow)
+                                if (getDistance(ghosts[i].gridX, ghosts[i].gridY, pacmanX, pacmanY) < 8)
+                                {
+                                    targetX = 1;
+                                    targetY = 1;
+                                }
+                                else
+                                {
+                                    targetX = pacmanX;
+                                    targetY = pacmanY;
+                                }
+                                break;
+                        }
+                    }
+
+                    float bestDistance = -1.0f;
+                    int nextX = ghosts[i].gridX;
+                    int nextY = ghosts[i].gridY;
 
                     if (!isWall(ghosts[i].gridX, ghosts[i].gridY - 1, maze_map))
                     {
@@ -405,7 +440,6 @@ int main()
                     ghosts[i].updatePosition(TILE_SIZE);
                 }
 
-                // Update the last ghost step time
                 last_ghost_step_time = clock.getElapsedTime();
             }
 
@@ -415,7 +449,7 @@ int main()
                 {
                     if (ghosts[i].is_vulnerable)
                     {
-                        score += 200; // Bonus points for eating a ghost
+                        score += 200;
                         ghosts[i].gridX = 10;
                         ghosts[i].gridY = 7;
                         ghosts[i].updatePosition(TILE_SIZE);
