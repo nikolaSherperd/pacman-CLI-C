@@ -2,6 +2,10 @@
 #include <vector>
 #include <string>
 
+// Add these new includes
+#include <SFML/Graphics/Text.hpp>
+#include <SFML/Graphics/Font.hpp>
+
 // isWall function remains the same
 bool isWall(int x, int y, const std::vector<std::string>& map)
 {
@@ -36,6 +40,22 @@ int main()
     // Pac-Man's position on the grid
     int pacmanX = 1;
     int pacmanY = 1;
+
+    // The score variable
+    int score = 0;
+
+    // Set up the font and text for the score
+    sf::Font font;
+    if (!font.loadFromFile("arial.ttf"))
+    {
+        return -1; // Error loading font
+    }
+
+    sf::Text scoreText;
+    scoreText.setFont(font);
+    scoreText.setCharacterSize(24);
+    scoreText.setFillColor(sf::Color::White);
+    scoreText.setPosition(10.f, 10.f);
 
     // Constants for drawing
     const float TILE_SIZE = 40.0f;
@@ -84,14 +104,12 @@ int main()
 
                 if (!isWall(nextX, nextY, maze_map))
                 {
-                    // Check if the next position is a pellet BEFORE moving
                     if (maze_map[nextY][nextX] == '.')
                     {
-                        // "Eat" the pellet by changing the tile to an empty space
                         maze_map[nextY][nextX] = ' ';
+                        score += 10;
                     }
 
-                    // Then update Pac-Man's position
                     pacmanX = nextX;
                     pacmanY = nextY;
                 }
@@ -100,7 +118,6 @@ int main()
 
         window.clear(sf::Color::Black);
 
-        // Draw the maze and remaining pellets
         for (size_t y = 0; y < maze_map.size(); ++y)
         {
             for (size_t x = 0; x < maze_map[y].size(); ++x)
@@ -117,16 +134,18 @@ int main()
                         window.draw(pellet);
                         break;
                     case ' ':
-                        // Do nothing, don't draw anything for an empty space
                         break;
                 }
             }
         }
 
-        // Draw Pac-Man at his current position
         pacman.setPosition(pacmanX * TILE_SIZE + (TILE_SIZE / 2.0f) - PACMAN_RADIUS,
                            pacmanY * TILE_SIZE + (TILE_SIZE / 2.0f) - PACMAN_RADIUS);
         window.draw(pacman);
+
+        // Update and draw the score
+        scoreText.setString("Score: " + std::to_string(score));
+        window.draw(scoreText);
 
         window.display();
     }
