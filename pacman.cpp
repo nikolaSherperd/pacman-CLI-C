@@ -18,6 +18,10 @@ public:
     int gridX;
     int gridY;
 
+    // New variables for ghost behavior
+    bool is_vulnerable = false;
+    sf::Color original_color;
+
     Ghost(int startX, int startY, sf::Color color, float tileSize)
     {
         gridX = startX;
@@ -26,6 +30,8 @@ public:
         shape.setSize(sf::Vector2f(tileSize, tileSize));
         shape.setFillColor(color);
         shape.setPosition(gridX * tileSize, gridY * tileSize);
+
+        original_color = color;
     }
 
     void updatePosition(float tileSize)
@@ -53,9 +59,21 @@ int main()
     srand(time(NULL));
     sf::RenderWindow window(sf::VideoMode(800, 600), "Pac-Man");
 
-    std::vector<std::string> maze_map = {
+    // Timer variables to control movement speed
+    sf::Clock clock;
+    sf::Time pacman_step_interval = sf::seconds(0.2f);
+    sf::Time ghost_step_interval = sf::seconds(0.3f);
+    sf::Time last_pacman_step_time = sf::Time::Zero;
+    sf::Time last_ghost_step_time = sf::Time::Zero;
+
+    // Variables for power-up mode
+    sf::Time powerup_duration = sf::seconds(7.0f);
+    sf::Time powerup_start_time = sf::Time::Zero;
+    bool is_powerup_active = false;
+
+    const std::vector<std::string> initial_maze_map = {
         "####################",
-        "#P.......#.........#",
+        "#O.......#.........#",
         "#.##.##.##.##.##.#.#",
         "#........#.........#",
         "#.##.#.#####.#.##.#",
@@ -65,9 +83,11 @@ int main()
         "######.###.###.#####",
         "#........#.........#",
         "#.##.#####.#####.##.#",
-        "#....#.........#....#",
+        "#....#.........#...O#",
         "####################"
     };
+
+    std::vector<std::string> maze_map;
 
     int pacmanX = 1;
     int pacmanY = 1;
@@ -147,6 +167,9 @@ int main()
                 {
                     current_state = GameState::Playing;
 
+                    // Reset the maze to its original state
+                    maze_map = initial_maze_map;
+
                     // Reset game variables for a new game
                     pacmanX = 1;
                     pacmanY = 1;
@@ -163,12 +186,16 @@ int main()
                     ghosts[3].gridX = 11;
                     ghosts[3].gridY = 7;
 
-                    // Recount pellets from the original maze map
+                    // Reset step timers
+                    last_pacman_step_time = clock.getElapsedTime();
+                    last_ghost_step_time = clock.getElapsedTime();
+
+                    // Recount pellets from the now-reset maze map
                     for (size_t y = 0; y < maze_map.size(); ++y)
                     {
                         for (size_t x = 0; x < maze_map[y].size(); ++x)
                         {
-                            if (maze_map[y][x] == '.')
+                            if (maze_map[y][x] == '.' || maze_map[y][x] == 'O')
                             {
                                 pellets_left++;
                             }
@@ -187,126 +214,216 @@ int main()
 
         if (current_state == GameState::Playing)
         {
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
+            // Update Pac-Man's position based on a fixed timestep
+            if (clock.getElapsedTime() - last_pacman_step_time >= pacman_step_interval)
             {
-                int nextX = pacmanX - 1;
-                int nextY = pacmanY;
-                if (!isWall(nextX, nextY, maze_map))
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
                 {
-                    if (maze_map[nextY][nextX] == '.')
+                    int nextX = pacmanX - 1;
+                    int nextY = pacmanY;
+                    if (!isWall(nextX, nextY, maze_map))
                     {
-                        maze_map[nextY][nextX] = ' ';
-                        score += 10;
-                        pellets_left--;
+                        if (maze_map[nextY][nextX] == '.')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 10;
+                            pellets_left--;
+                        }
+                        else if (maze_map[nextY][nextX] == 'O')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 50; // Award bonus points for eating a power pellet
+                            is_powerup_active = true;
+                            powerup_start_time = clock.getElapsedTime();
+                            pellets_left--;
+                        }
+                        pacmanX = nextX;
+                        pacmanY = nextY;
                     }
-                    pacmanX = nextX;
-                    pacmanY = nextY;
                 }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+                {
+                    int nextX = pacmanX + 1;
+                    int nextY = pacmanY;
+                    if (!isWall(nextX, nextY, maze_map))
+                    {
+                        if (maze_map[nextY][nextX] == '.')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 10;
+                            pellets_left--;
+                        }
+                        else if (maze_map[nextY][nextX] == 'O')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 50; // Award bonus points for eating a power pellet
+                            is_powerup_active = true;
+                            powerup_start_time = clock.getElapsedTime();
+                            pellets_left--;
+                        }
+                        pacmanX = nextX;
+                        pacmanY = nextY;
+                    }
+                }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
+                {
+                    int nextX = pacmanX;
+                    int nextY = pacmanY - 1;
+                    if (!isWall(nextX, nextY, maze_map))
+                    {
+                        if (maze_map[nextY][nextX] == '.')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 10;
+                            pellets_left--;
+                        }
+                        else if (maze_map[nextY][nextX] == 'O')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 50; // Award bonus points for eating a power pellet
+                            is_powerup_active = true;
+                            powerup_start_time = clock.getElapsedTime();
+                            pellets_left--;
+                        }
+                        pacmanX = nextX;
+                        pacmanY = nextY;
+                    }
+                }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
+                {
+                    int nextX = pacmanX;
+                    int nextY = pacmanY + 1;
+                    if (!isWall(nextX, nextY, maze_map))
+                    {
+                        if (maze_map[nextY][nextX] == '.')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 10;
+                            pellets_left--;
+                        }
+                        else if (maze_map[nextY][nextX] == 'O')
+                        {
+                            maze_map[nextY][nextX] = ' ';
+                            score += 50; // Award bonus points for eating a power pellet
+                            is_powerup_active = true;
+                            powerup_start_time = clock.getElapsedTime();
+                            pellets_left--;
+                        }
+                        pacmanX = nextX;
+                        pacmanY = nextY;
+                    }
+                }
+
+                // Update the last step time after the movement
+                last_pacman_step_time = clock.getElapsedTime();
             }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
+
+            // Check if the power-up has expired
+            if (is_powerup_active && (clock.getElapsedTime() - powerup_start_time >= powerup_duration))
             {
-                int nextX = pacmanX + 1;
-                int nextY = pacmanY;
-                if (!isWall(nextX, nextY, maze_map))
-                {
-                    if (maze_map[nextY][nextX] == '.')
-                    {
-                        maze_map[nextY][nextX] = ' ';
-                        score += 10;
-                        pellets_left--;
-                    }
-                    pacmanX = nextX;
-                    pacmanY = nextY;
-                }
+                is_powerup_active = false;
             }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-            {
-                int nextX = pacmanX;
-                int nextY = pacmanY - 1;
-                if (!isWall(nextX, nextY, maze_map))
-                {
-                    if (maze_map[nextY][nextX] == '.')
-                    {
-                        maze_map[nextY][nextX] = ' ';
-                        score += 10;
-                        pellets_left--;
-                    }
-                    pacmanX = nextX;
-                    pacmanY = nextY;
-                }
-            }
-            if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-            {
-                int nextX = pacmanX;
-                int nextY = pacmanY + 1;
-                if (!isWall(nextX, nextY, maze_map))
-                {
-                    if (maze_map[nextY][nextX] == '.')
-                    {
-                        maze_map[nextY][nextX] = ' ';
-                        score += 10;
-                        pellets_left--;
-                    }
-                    pacmanX = nextX;
-                    pacmanY = nextY;
-                }
-            }
+
+            // Update ghosts based on power-up state
             for (size_t i = 0; i < ghosts.size(); ++i)
             {
-                float minDistance = -1.0f;
-                int nextX = ghosts[i].gridX;
-                int nextY = ghosts[i].gridY;
+                if (is_powerup_active)
+                {
+                    ghosts[i].is_vulnerable = true;
+                    ghosts[i].shape.setFillColor(sf::Color::Blue);
+                }
+                else
+                {
+                    ghosts[i].is_vulnerable = false;
+                    ghosts[i].shape.setFillColor(ghosts[i].original_color);
+                }
+            }
 
-                if (!isWall(ghosts[i].gridX, ghosts[i].gridY - 1, maze_map))
+            // Update Ghost positions based on a fixed timestep
+            if (clock.getElapsedTime() - last_ghost_step_time >= ghost_step_interval)
+            {
+                for (size_t i = 0; i < ghosts.size(); ++i)
                 {
-                    float distance = getDistance(ghosts[i].gridX, ghosts[i].gridY - 1, pacmanX, pacmanY);
-                    if (minDistance == -1.0f || distance < minDistance)
+                    float bestDistance = -1.0f;
+                    int nextX = ghosts[i].gridX;
+                    int nextY = ghosts[i].gridY;
+
+                    // Determine the target based on power-up state
+                    float targetX = (float)pacmanX;
+                    float targetY = (float)pacmanY;
+
+                    if (ghosts[i].is_vulnerable)
                     {
-                        minDistance = distance;
-                        nextX = ghosts[i].gridX;
-                        nextY = ghosts[i].gridY - 1;
+                        // If vulnerable, the ghosts will flee to the opposite side of the screen
+                        targetX = window.getSize().x / TILE_SIZE - pacmanX;
+                        targetY = window.getSize().y / TILE_SIZE - pacmanY;
                     }
-                }
-                if (!isWall(ghosts[i].gridX, ghosts[i].gridY + 1, maze_map))
-                {
-                    float distance = getDistance(ghosts[i].gridX, ghosts[i].gridY + 1, pacmanX, pacmanY);
-                    if (minDistance == -1.0f || distance < minDistance)
+
+                    if (!isWall(ghosts[i].gridX, ghosts[i].gridY - 1, maze_map))
                     {
-                        minDistance = distance;
-                        nextX = ghosts[i].gridX;
-                        nextY = ghosts[i].gridY + 1;
+                        float distance = getDistance(ghosts[i].gridX, ghosts[i].gridY - 1, targetX, targetY);
+                        if (bestDistance == -1.0f || distance < bestDistance)
+                        {
+                            bestDistance = distance;
+                            nextX = ghosts[i].gridX;
+                            nextY = ghosts[i].gridY - 1;
+                        }
                     }
-                }
-                if (!isWall(ghosts[i].gridX - 1, ghosts[i].gridY, maze_map))
-                {
-                    float distance = getDistance(ghosts[i].gridX - 1, ghosts[i].gridY, pacmanX, pacmanY);
-                    if (minDistance == -1.0f || distance < minDistance)
+                    if (!isWall(ghosts[i].gridX, ghosts[i].gridY + 1, maze_map))
                     {
-                        minDistance = distance;
-                        nextX = ghosts[i].gridX - 1;
-                        nextY = ghosts[i].gridY;
+                        float distance = getDistance(ghosts[i].gridX, ghosts[i].gridY + 1, targetX, targetY);
+                        if (bestDistance == -1.0f || distance < bestDistance)
+                        {
+                            bestDistance = distance;
+                            nextX = ghosts[i].gridX;
+                            nextY = ghosts[i].gridY + 1;
+                        }
                     }
-                }
-                if (!isWall(ghosts[i].gridX + 1, ghosts[i].gridY, maze_map))
-                {
-                    float distance = getDistance(ghosts[i].gridX + 1, ghosts[i].gridY, pacmanX, pacmanY);
-                    if (minDistance == -1.0f || distance < minDistance)
+                    if (!isWall(ghosts[i].gridX - 1, ghosts[i].gridY, maze_map))
                     {
-                        minDistance = distance;
-                        nextX = ghosts[i].gridX + 1;
-                        nextY = ghosts[i].gridY;
+                        float distance = getDistance(ghosts[i].gridX - 1, ghosts[i].gridY, targetX, targetY);
+                        if (bestDistance == -1.0f || distance < bestDistance)
+                        {
+                            bestDistance = distance;
+                            nextX = ghosts[i].gridX - 1;
+                            nextY = ghosts[i].gridY;
+                        }
                     }
+                    if (!isWall(ghosts[i].gridX + 1, ghosts[i].gridY, maze_map))
+                    {
+                        float distance = getDistance(ghosts[i].gridX + 1, ghosts[i].gridY, targetX, targetY);
+                        if (bestDistance == -1.0f || distance < bestDistance)
+                        {
+                            bestDistance = distance;
+                            nextX = ghosts[i].gridX + 1;
+                            nextY = ghosts[i].gridY;
+                        }
+                    }
+
+                    ghosts[i].gridX = nextX;
+                    ghosts[i].gridY = nextY;
+                    ghosts[i].updatePosition(TILE_SIZE);
                 }
-                ghosts[i].gridX = nextX;
-                ghosts[i].gridY = nextY;
-                ghosts[i].updatePosition(TILE_SIZE);
+
+                // Update the last ghost step time
+                last_ghost_step_time = clock.getElapsedTime();
             }
 
             for (size_t i = 0; i < ghosts.size(); ++i)
             {
                 if (ghosts[i].gridX == pacmanX && ghosts[i].gridY == pacmanY)
                 {
-                    current_state = GameState::GameOver;
+                    if (ghosts[i].is_vulnerable)
+                    {
+                        score += 200; // Bonus points for eating a ghost
+                        ghosts[i].gridX = 10;
+                        ghosts[i].gridY = 7;
+                        ghosts[i].updatePosition(TILE_SIZE);
+                    }
+                    else
+                    {
+                        current_state = GameState::GameOver;
+                    }
                 }
             }
 
@@ -339,6 +456,13 @@ int main()
                             pellet.setPosition(x * TILE_SIZE + (TILE_SIZE / 2.0f) - PELLET_RADIUS,
                                                y * TILE_SIZE + (TILE_SIZE / 2.0f) - PELLET_RADIUS);
                             window.draw(pellet);
+                            break;
+                        case 'O':
+                            pellet.setRadius(PELLET_RADIUS * 2);
+                            pellet.setPosition(x * TILE_SIZE + (TILE_SIZE / 2.0f) - (PELLET_RADIUS * 2),
+                                               y * TILE_SIZE + (TILE_SIZE / 2.0f) - (PELLET_RADIUS * 2));
+                            window.draw(pellet);
+                            pellet.setRadius(PELLET_RADIUS);
                             break;
                         case ' ':
                             break;
