@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 
-// Add the isWall function here
+// isWall function remains the same
 bool isWall(int x, int y, const std::vector<std::string>& map)
 {
     if (y < 0 || y >= map.size() || x < 0 || x >= map[y].size())
@@ -16,6 +16,7 @@ int main()
 {
     sf::RenderWindow window(sf::VideoMode(800, 600), "Pac-Man");
 
+    // The maze map
     std::vector<std::string> maze_map = {
         "####################",
         "#P.......#.........#",
@@ -32,17 +33,21 @@ int main()
         "####################"
     };
 
+    // Pac-Man's position on the grid
     int pacmanX = 1;
     int pacmanY = 1;
 
+    // Constants for drawing
     const float TILE_SIZE = 40.0f;
     sf::RectangleShape wallTile(sf::Vector2f(TILE_SIZE, TILE_SIZE));
     wallTile.setFillColor(sf::Color::Blue);
 
+    // Pac-Man's properties
     const float PACMAN_RADIUS = 15.0f;
     sf::CircleShape pacman(PACMAN_RADIUS);
     pacman.setFillColor(sf::Color::Yellow);
 
+    // Pellet properties
     const float PELLET_RADIUS = 5.0f;
     sf::CircleShape pellet(PELLET_RADIUS);
     pellet.setFillColor(sf::Color::White);
@@ -79,6 +84,14 @@ int main()
 
                 if (!isWall(nextX, nextY, maze_map))
                 {
+                    // Check if the next position is a pellet BEFORE moving
+                    if (maze_map[nextY][nextX] == '.')
+                    {
+                        // "Eat" the pellet by changing the tile to an empty space
+                        maze_map[nextY][nextX] = ' ';
+                    }
+
+                    // Then update Pac-Man's position
                     pacmanX = nextX;
                     pacmanY = nextY;
                 }
@@ -87,6 +100,7 @@ int main()
 
         window.clear(sf::Color::Black);
 
+        // Draw the maze and remaining pellets
         for (size_t y = 0; y < maze_map.size(); ++y)
         {
             for (size_t x = 0; x < maze_map[y].size(); ++x)
@@ -102,10 +116,14 @@ int main()
                                            y * TILE_SIZE + (TILE_SIZE / 2.0f) - PELLET_RADIUS);
                         window.draw(pellet);
                         break;
+                    case ' ':
+                        // Do nothing, don't draw anything for an empty space
+                        break;
                 }
             }
         }
 
+        // Draw Pac-Man at his current position
         pacman.setPosition(pacmanX * TILE_SIZE + (TILE_SIZE / 2.0f) - PACMAN_RADIUS,
                            pacmanY * TILE_SIZE + (TILE_SIZE / 2.0f) - PACMAN_RADIUS);
         window.draw(pacman);
